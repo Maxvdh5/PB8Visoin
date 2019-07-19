@@ -1,7 +1,9 @@
 #include "picture.h"
 
 #include <math.h>
-
+#include <QDir>
+#include <QImage>
+#include <QDebug>
 Picture::Picture()
 {
 
@@ -34,6 +36,11 @@ Picture Picture::getObject(int index)
     return objectArray[index];
 }
 
+int Picture::getObjArrSize()
+{
+    return this->objectArray.size();
+}
+
 void Picture::createPixel(Pixel pixel, int row, int col)
 {
     pixelArray[row*imageHeight+col] = pixel;
@@ -61,9 +68,8 @@ void Picture::toGrayscale()
         }
 }
 
-void Picture::toBW()
+void Picture::toBW(int thresh)
 {
-    int thresh = findThreshold();
     thresh = thresh + (0.5*(255-thresh));
 
     for ( int row = 0; row < this->imageWidth ; ++row )
@@ -148,14 +154,14 @@ int Picture::findThreshold()
 void Picture::floodFillUntil(int x, int y, int prevC, int newC)
 {
     // Base cases
-    if (x < 400 || x >= 500|| y < 300 || y >= 400)
+    if (x < 0 || x >= imageWidth-1|| y < 0 || y >= imageHeight-1)
         return;
     if (this->getPixel(y,x).getBW() != prevC)
         return;
 
     // Replace the color at (x, y
-    this->setPixel('W',newC,x,y);
-
+    this->setPixel('w',newC,x,y);
+    test++;
     // Recur for north, east, south and west
     this->floodFillUntil(x+1, y, prevC, newC);
     this->floodFillUntil(x-1, y, prevC, newC);
@@ -186,12 +192,16 @@ void Picture::createNewImage()
                     maxY = col;
             }
         }
+
+    if((maxX - minX -2 < 1) || (maxY - minY -2 < 1) )
+        return;
+
     newObject = Picture(maxX-minX-2,maxY-minY-2);
 
     for ( int row = minX+1; row < maxX-1 ; ++row )
         for ( int col = minY+1; col < maxY-1 ; ++col )
         {
-            if(this->getPixel(col,row).getBW() == 100)
+            if(this->getPixel(col,row).getBW() == 100 || this->getPixel(col,row).getBW() == 255)
                newObject.createPixel(Pixel(255),row-minX-1,col-minY-1);
             else
                 newObject.createPixel(Pixel(0),row-minX-1,col-minY-1);
@@ -237,7 +247,7 @@ void Picture::dialate(int size)
     for ( int row = 0; row < this->imageWidth ; ++row )
         for ( int col = 0; col < this->imageHeight ; ++col )
         {
-            this->setPixel('W',newImage.getPixel(col,row).getBW(),row,col);
+            this->setPixel('w',newImage.getPixel(col,row).getBW(),row,col);
         }
 }
 
@@ -255,17 +265,154 @@ void Picture::invert()
 
 void Picture::getObjects()
 {
-    int test = 0;
     for ( int row = 0; row < this->imageWidth ; ++row )
         for ( int col = 0; col < this->imageHeight ; ++col )
         {
-            if(this->getPixel(col,row).getBW() == 255 && test < 2)
+            if(this->getPixel(col,row).getBW() == 255)
             {
-
+                test = 0;
                 floodFillUntil(row,col,this->getPixel(col,row).getBW(),100);
-                createNewImage();
+                if (test > 30)
+                {
+                     createNewImage();
+                }
+
                 floodFillUntil(row,col,this->getPixel(col,row).getBW(),254);
-                 test++;
             }
         }
+}
+
+void Picture::close(int size)
+{
+    this->dialate(size);
+    this->invert();
+    this->dialate(size);
+    this->invert();
+}
+
+int Picture::countObjects()
+{
+    int count = 0;
+    for ( int row = 0; row < this->imageWidth ; ++row )
+        for ( int col = 0; col < this->imageHeight ; ++col )
+        {
+            if(this->getPixel(col,row).getBW() == 255)
+            {
+                test = 0;
+                floodFillUntil(row,col,this->getPixel(col,row).getBW(),100);
+                if (test > 10)
+                {
+                    count++;
+                }
+                floodFillUntil(row,col,this->getPixel(col,row).getBW(),254);
+            }
+        }
+    return count;
+}
+
+void Picture::findYellow()
+{
+    for ( int row = 0; row < this->imageWidth ; ++row )
+        for ( int col = 0; col < this->imageHeight ; ++col )
+        {
+            if(this->getPixel(col,row).getR() > 200 && this->getPixel(col,row).getG() > 150 && this->getPixel(col,row).getB() < 50)
+            {
+                this->setPixel('r',255,row,col);
+            }
+        }
+}
+
+int Picture::getLargestObject()
+{
+    int largestObject = 0;
+    for(int i = 0; i< objectArray.size(); i++)
+    {
+        int largestSize = objectArray[largestObject].imageWidth * objectArray[largestObject].imageHeight;
+        int testSize = objectArray[i].imageWidth * objectArray[i].imageHeight;
+        if(testSize > largestSize)
+            largestObject = i;
+    }
+    return largestObject;
+}
+
+void Picture::loadMasks()
+{
+    int count = 0;
+    QDir directory("/home/max/Vision/TI8-vision/charmasks");
+    QStringList images = directory.entryList(QStringList() << "*.png" << "*.png",QDir::Files);
+    foreach(QString filename, images) {
+    //do whatever you need to do
+        QImage img("/home/max/Vision/TI8-vision/charmasks/"+filename);
+        QImage scaled = img.scaled(imageWidth,imageHeight);
+        Picture image = Picture(imageWidth,imageHeight);
+        qDebug()<<"THIS" <<this->getWidth();
+        qDebug()<<"image" <<image.getWidth();
+        qDebug()<< "THIS" <<this->getHeight();
+        qDebug()<< "image" <<image.getHeight();
+        for ( int row = 0; row < image.getWidth() ; ++row )
+            for ( int col = 0; col < image.getHeight() ; ++col )
+            {
+                QColor clrCurrent( scaled.pixel( row, col ) );
+                if(clrCurrent.red() > 100)
+                    image.createPixel(Pixel(255),row,col);
+                else
+                    image.createPixel(Pixel(0),row,col);
+                //std::cout << imageArray[row*img.height()+col].getR()<<"," << imageArray[row*img.height()+col].getG() <<"," << imageArray[row*img.height()+col].getB() << std::endl;
+
+            }
+        masks.push_back(image);
+        id.push_back(filename.left(1));
+        count++;
+    }
+}
+
+Picture Picture::getMask(int index)
+{
+    return masks[index];
+}
+
+int Picture::findMatch()
+{
+    double matchingNumber = 0.00;
+    int index = 0;
+    for(int i = 0; i< masks.size(); i++)
+    {
+        int counter = 0;
+        int totaleWittePixelsMask = 0;
+        int totaleWittePixelsObject = 0;
+        for ( int row = 0; row < this->imageWidth ; ++row )
+            for ( int col = 0; col < this->imageHeight ; ++col )
+            {
+                if((this->getPixel(col,row).getBW() == masks[i].getPixel(col,row).getBW()) && this->getPixel(col,row).getBW() == 255)
+                {
+                    counter++;
+                 }
+
+                if(this->getPixel(col,row).getBW() == 255)
+                {
+                    totaleWittePixelsObject++;
+                }
+
+                if(masks[i].getPixel(col,row).getBW() == 255)
+                {
+                    totaleWittePixelsMask++;
+                }
+
+            }
+        double MatchValue = 0;
+        if(totaleWittePixelsMask !=0)
+            MatchValue = (static_cast<double>(counter)/static_cast<double>(totaleWittePixelsMask))*(static_cast<double>(counter)/(totaleWittePixelsObject));
+
+        if(MatchValue>matchingNumber)
+        {
+            matchingNumber = MatchValue;
+            index = i;
+        }
+    }
+    return index;
+}
+
+QString Picture::getID(int index)
+{
+    return id[index];
 }

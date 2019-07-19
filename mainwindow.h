@@ -20,13 +20,22 @@ public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
 
-    void loadImage();
-    void viewImage(Picture imageToShow,int window);
+    void loadImage(QString location); //plaatje inladen en omzetten naar een 2d pixelArray
+    void loadMasks(QString location); // masks inladen en omzetten
+    void viewImage(Picture imageToShow,int window); //plaatje weergeven in aangegeven window
+private slots:
+    //knoppen om de aplicatie te bedienen
+    void on_openDobbelsteen_clicked();
+    void on_Dobbelsteen_clicked();
+    void on_kenteken_clicked();
+    void on_openKenteken_clicked();
+
 private:
     Ui::MainWindow *ui;
 
-    Picture picture;
-    std::array<QLabel *, 2> labels;
+    Picture picture; //de te gebruiken afbeelding
+    std::array<QLabel *, 2> labels;//array van labels om de plaatjes in weet te geven
+
 };
 
 #endif // MAINWINDOW_H

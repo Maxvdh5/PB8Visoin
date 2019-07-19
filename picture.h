@@ -5,7 +5,7 @@
 
 #include <vector>
 #include <iostream>
-
+#include <QString>
 
 class Picture
 {
@@ -18,6 +18,7 @@ public:
     int getHeight();
     Pixel getPixel(int col,int row);
     Picture getObject(int index);
+    int getObjArrSize();
 
     //setters
     void createPixel(Pixel pixel,int row,int col);
@@ -25,7 +26,7 @@ public:
 
     //functions
     void toGrayscale();
-    void toBW();
+    void toBW(int thresh);
     void getHistogram();
     int findThreshold();
     void floodFillUntil(int x, int y, int prevC, int newC);
@@ -33,7 +34,14 @@ public:
     void dialate(int size);
     void invert();
     void getObjects();
-
+    void close(int size);
+    int countObjects();
+    void findYellow();
+    int getLargestObject();
+    void loadMasks();
+    Picture getMask(int index);
+    int findMatch();
+    QString getID(int index);
 
 
 
@@ -41,7 +49,9 @@ private:
     Pixel * pixelArray;
     int imageWidth;
     int imageHeight;
-
+    int test;
+    std::vector<Picture> masks;
+    std::vector<QString> id;
     float histogram[257];
     std::vector<Picture> objectArray;
 

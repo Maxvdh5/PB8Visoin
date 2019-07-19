@@ -6,14 +6,14 @@
 #include <QDir>
 #include <QDebug>
 #include <iostream>
+#include <QFileDialog>
 
 
 
 
 
 //int *ary = new int[sizeX*sizeY];
-
-//// ary[i][j] is then rewritten as
+// ary[i][j] is then rewritten as
 //ary[i*sizeY+j]
 
 
@@ -22,13 +22,8 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    this->labels = {ui->label0,ui->label1};
-    loadImage();
-       this->picture.toGrayscale();
-       this->picture.toBW();
-       viewImage(this->picture,0);
-       this->picture.getObjects();
-       viewImage(this->picture.getObject(0),0);
+    this->labels = {ui->label1,ui->kentekenimg};
+
 
 }
 
@@ -38,11 +33,9 @@ MainWindow::~MainWindow()
 
 }
 
-void MainWindow::loadImage()
+void MainWindow::loadImage(QString location)
 {
-    QString homePath = QDir::homePath();
-    QString url = homePath + "/Vision/TI8-vision/img/dobbelstenenOgen.jpg";
-    QImage img(url);
+    QImage img(location);
 
     picture = Picture(img.width(),img.height());
 
@@ -51,12 +44,9 @@ void MainWindow::loadImage()
         {
             QColor clrCurrent( img.pixel( row, col ) );
             picture.createPixel(Pixel(clrCurrent.red(),clrCurrent.green(),clrCurrent.blue()),row,col);
-            //std::cout << imageArray[row*img.height()+col].getR()<<"," << imageArray[row*img.height()+col].getG() <<"," << imageArray[row*img.height()+col].getB() << std::endl;
-
         }
-
-
 }
+
 
 void MainWindow::viewImage(Picture imageToShow,int window)
 {
@@ -64,12 +54,76 @@ void MainWindow::viewImage(Picture imageToShow,int window)
     for ( int row = 0; row < imageToShow.getWidth() ; ++row )
         for ( int col = 0; col < imageToShow.getHeight() ; ++col )
         {
-
-            //QRgb rgb = qRgb(pixelArray[row*imageHeight+col].getR(),pixelArray[row*imageHeight+col].getG(),pixelArray[row*imageHeight+col].getB());
-            int gray = imageToShow.getPixel(col,row).getBW();
-            img.setPixel(row,col, QColor(gray, gray, gray).rgb());
+//            int gray = imageToShow.getPixel(col,row).getBW();
+//            img.setPixel(row,col, QColor(gray,gray,gray).rgb());
+            img.setPixel(row,col, QColor(imageToShow.getPixel(col,row).getR(), imageToShow.getPixel(col,row).getG(), imageToShow.getPixel(col,row).getB()).rgb());
         }
     this->labels[window]->setPixmap(QPixmap::fromImage(img));
     this->labels[window]->setScaledContents(true);
 }
 
+
+
+
+void MainWindow::on_openDobbelsteen_clicked()
+{
+    QString Filename = QFileDialog::getOpenFileName(this,"open a file",QDir::homePath()) ;
+    loadImage(Filename);
+       this->picture.toGrayscale();
+       this->picture.toBW(this->picture.findThreshold());
+       this->picture.getObjects();
+        int count = 0;
+        for(int i = 0; i<this->picture.getObjArrSize(); i++)
+        {
+
+            this->picture.getObject(i).floodFillUntil(2,2,0,255);
+            this->picture.getObject(i).floodFillUntil(this->picture.getObject(i).getWidth()-2,2,0,255);
+            this->picture.getObject(i).floodFillUntil(this->picture.getObject(i).getWidth()-2,this->picture.getObject(i).getHeight()-2,0,255);
+            this->picture.getObject(i).floodFillUntil(2,this->picture.getObject(i).getHeight()-2,0,255);
+            this->picture.getObject(i).close(9);
+            this->picture.getObject(i).invert();
+            count = count + this->picture.getObject(i).countObjects()-1;
+        }
+
+       viewImage(this->picture,0);
+       ui->label->setText("Het aantal gegooide ogen is: " + QString::number(count));
+}
+
+void MainWindow::on_Dobbelsteen_clicked()
+{
+    ui->stackedWidget->setCurrentIndex(0);
+}
+
+void MainWindow::on_kenteken_clicked()
+{
+    ui->stackedWidget->setCurrentIndex(1);
+}
+
+void MainWindow::on_openKenteken_clicked()
+{
+    QString Filename = QFileDialog::getOpenFileName(this,"open a file",QDir::homePath()) ;
+    loadImage(Filename);
+    this->picture.toGrayscale();
+    this->picture.findYellow();
+    this->picture.toBW(255);
+    this->picture.getObjects();
+    int largest = this->picture.getLargestObject();
+    Picture nummerplaat = this->picture.getObject(largest);
+    nummerplaat.invert();
+    nummerplaat.close(3);
+    nummerplaat.getObjects();
+    QString Kenteken;
+    for(int i = 0; i<nummerplaat.getObjArrSize(); i++)
+    {
+        Picture letter = nummerplaat.getObject(i);
+        letter.loadMasks();
+        int test = letter.findMatch();
+        Kenteken = Kenteken + letter.getID(test);
+    }
+    ui->label_5->setText(Kenteken);
+
+    Picture let = nummerplaat.getObject(0);
+    let.loadMasks();
+    viewImage(this->picture,1);
+
+}
